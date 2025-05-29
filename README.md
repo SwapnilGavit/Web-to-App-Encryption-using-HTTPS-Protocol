@@ -42,7 +42,7 @@ The guide is divided into nine key steps, detailed in the `Web to App Encryption
 8. **Apache Configuration**: Update `httpd.conf` to enable SSL proxy and client certificate usage.
 9. **Verify Handshake**: Test the mTLS handshake using `openssl s_client` to ensure proper configuration.
 
-For detailed commands and explanations, refer to the [main guide](https://github.com/SwapnilGavit/Web-to-App-Encryption-using-HTTPS-Protocol/blob/main/Web%20to%20App%20Encryption%20using%20HTTPS%20Protocol.html).
+For detailed commands and explanations, refer to the Web to App Encryption using HTTPS Protocol.html
 
 ## Usage
 
