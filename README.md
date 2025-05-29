@@ -46,12 +46,8 @@ For detailed commands and explanations, refer to the [main guide](Web%20to%20App
 
 ## Usage
 
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/your-username/your-repo-name.git
-   ```
-2. Follow the steps in the HTML guide to generate certificates and configure Apache and Tomcat.
-3. Test the mTLS setup using the provided `openssl s_client` commands to verify the handshake.
+1. Follow the steps in the HTML guide to generate certificates and configure Apache and Tomcat.
+2. Test the mTLS setup using the provided `openssl s_client` commands to verify the handshake.
 
 ## File Structure
 
