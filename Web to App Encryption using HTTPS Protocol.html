@@ -120,7 +120,7 @@
                 <div class="code-block mb-4">
                     <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
                     <pre><code>openssl genrsa -out ca.key 2048
-openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 -out ca.crt -subj "/C=IN/ST=Maharashtra/L=Mumbai/O=National Stock Exchange of India Limited/OU=National Stock Exchange of India Limited/CN=CA"</code></pre>
+openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 -out ca.crt -subj "/C=IN/ST=Maharashtra/L=Mumbai/O=Organization Name/OU=Organization Name/CN=CA"</code></pre>
                 </div>
                 <h3 class="text-xl font-semibold text-orange-600">Explanation:</h3>
                 <ul class="list-disc list-inside space-y-2 mt-2">
@@ -166,17 +166,17 @@ distinguished_name = dn
 C = IN
 ST = Maharashtra
 L = Mumbai
-O = National Stock Exchange of India Limited
-OU = National Stock Exchange of India Limited
-CN = 172.17.202.237
+O = Organization Name
+OU = Organization Name
+CN = AppServerIP
 
 [req_ext]
 subjectAltName = @alt_names
 
 [alt_names]
-DNS.1 = ebpappuatnw
-DNS.2 = ebpappuatnw.nseroot.com
-IP.1 = 172.17.202.237</code></pre>
+DNS.1 = AppServerHostname
+DNS.2 = AppServerHostname.com
+IP.1 = AppServerIP</code></pre>
                 </div>
                 <h3 class="text-xl font-semibold text-orange-600">Generate Tomcat server certificate with SANs:</h3>
                 <div class="code-block mb-4">
@@ -207,12 +207,12 @@ openssl x509 -req -in tomcat.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out t
                 <h3 class="text-xl font-semibold text-orange-600">Create PKCS12 keystore:</h3>
                  <div class="code-block mb-4">
                     <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
-                    <pre><code>openssl pkcs12 -export -in tomcat.crt -inkey tomcat.key -out tomcat.p12 -name tomcat -CAfile ca.crt -password pass:Nse1234</code></pre>
+                    <pre><code>openssl pkcs12 -export -in tomcat.crt -inkey tomcat.key -out tomcat.p12 -name tomcat -CAfile ca.crt -password pass:Abc1234</code></pre>
                 </div>
                 <h3 class="text-xl font-semibold text-orange-600">Convert into Java keystore (JKS):</h3>
                 <div class="code-block mb-4">
                     <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
-                    <pre><code>keytool -importkeystore -srckeystore tomcat.p12 -srcstoretype PKCS12 -srcstorepass Nse1234 -destkeystore tomcat.jks -deststoretype JKS -deststorepass Nse1234 -destkeypass Nse1234</code></pre>
+                    <pre><code>keytool -importkeystore -srckeystore tomcat.p12 -srcstoretype PKCS12 -srcstorepass Abc1234 -destkeystore tomcat.jks -deststoretype JKS -deststorepass Abc1234 -destkeypass Abc1234</code></pre>
                 </div>
                 <h3 class="text-xl font-semibold text-orange-600">Explanation:</h3>
                  <ul class="list-disc list-inside space-y-2 mt-2">
@@ -233,7 +233,7 @@ openssl x509 -req -in tomcat.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out t
                  <h3 class="text-xl font-semibold text-orange-600">Command:</h3>
                 <div class="code-block mb-4">
                     <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
-                    <pre><code>keytool -import -trustcacerts -file ca.crt -keystore truststore.jks -alias ca -storepass Nse1234 -noprompt</code></pre>
+                    <pre><code>keytool -import -trustcacerts -file ca.crt -keystore truststore.jks -alias ca -storepass Abc1234 -noprompt</code></pre>
                 </div>
                 <h3 class="text-xl font-semibold text-orange-600">Explanation:</h3>
                 <ul class="list-disc list-inside space-y-2 mt-2">
@@ -269,19 +269,18 @@ distinguished_name = dn
 C = IN
 ST = Maharashtra
 L = Mumbai
-O = National Stock Exchange of India Limited
-OU = National Stock Exchange of India Limited
-CN = 192.168.17.22
+O = Organization Name
+OU = Organization Name
+CN = WebServerIP
 
 [req_ext]
 subjectAltName = @alt_names
 
 [alt_names]
-DNS.1 = cbricsebpwebuatnw1.nseroot.com
-DNS.2 = bricsonlinereguat.nseindia.com
-DNS.3 = www.bricsonlinereguat.nseindia.com
-DNS.4 = cbricsebpwebuatnw1
-IP.1 = 192.168.17.22</code></pre>
+DNS.1 = yourdomain.com
+DNS.2 = WebServerHostname
+DNS.3 = WebServerHostname.com
+IP.1 = WebServerIP</code></pre>
                 </div>
                 <h3 class="text-xl font-semibold text-orange-600">Generate Apache client certificate with SANs:</h3>
                 <div class="code-block mb-4">
@@ -333,10 +332,10 @@ cat apache.crt apache_unencrypted.key > apache_client.pem</code></pre>
                     <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
                     <pre><code>&lt;Connector  protocol="org.apache.coyote.http11.Http11NioProtocol"
              address="0.0.0.0"
-             port="${server.ajp.port}"
+             port="8082"
              server="MyServer"
              connectionTimeout="20000"
-             redirectPort="${server.redirect.port}"
+             redirectPort="0"
              maxParameterCount="1000"
              SSLEnabled="true"
              scheme="https"
@@ -344,26 +343,27 @@ cat apache.crt apache_unencrypted.key > apache_client.pem</code></pre>
              clientAuth="true"
              sslProtocol="TLS"
              keystoreFile="/path/to/tomcat.jks"
-             keystorePass="Nse1234"
+             keystorePass="Abc1234"
              truststoreFile="/path/to/truststore.jks"
-             truststorePass="Nse1234"
+             truststorePass="Abc1234"
              /&gt;</code></pre>
                 </div>
                 <h3 class="text-xl font-semibold text-orange-600">Explanation of Attributes:</h3>
                  <ul class="list-disc list-inside space-y-2 mt-2">
+					<li><code class="inline-code">protocol="org.apache.coyote.http11.Http11NioProtocol"</code>: Specifies the protocol implementation for handling HTTP/HTTPS requests.</li>
                     <li><code class="inline-code">SSLEnabled="true"</code>: Enables SSL/TLS for this connector.</li>
                     <li><code class="inline-code">scheme="https"</code>, <code class="inline-code">secure="true"</code>: Designate connector as secure (HTTPS).</li>
                     <li><code class="inline-code">clientAuth="true"</code>: **Crucial for mTLS.** Tells Tomcat to require a client certificate. If not presented or untrusted, connection is rejected.</li>
                     <li><code class="inline-code">sslProtocol="TLS"</code>: Specifies TLS protocol.</li>
                     <li><code class="inline-code">keystoreFile="/path/to/tomcat.jks"</code>: Path to Tomcat's JKS keystore (contains its private key and certificate). **Replace <code class="inline-code">/path/to/</code> with the actual path.**</li>
-                    <li><code class="inline-code">keystorePass="Nse1234"</code>: Password for Tomcat's keystore.</li>
+                    <li><code class="inline-code">keystorePass="Abc1234"</code>: Password for Tomcat's keystore.</li>
                     <li><code class="inline-code">truststoreFile="/path/to/truststore.jks"</code>: Path to Tomcat's JKS truststore (contains Root CA cert for verifying Apache's client cert). **Replace <code class="inline-code">/path/to/</code> with the actual path.**</li>
-                    <li><code class="inline-code">truststorePass="Nse1234"</code>: Password for Tomcat's truststore.</li>
+                    <li><code class="inline-code">truststorePass="Abc1234"</code>: Password for Tomcat's truststore.</li>
                 </ul>
             </section>
 
             <section id="step8" class="content-section">
-                <h2 class="text-2xl font-bold text-orange-700">8. Configure Apache Client Certificate in <code class="inline-code">excellex_confi.conf</code></h2>
+                <h2 class="text-2xl font-bold text-orange-700">8. Configure Apache Client Certificate in <code class="inline-code">httpd.conf</code></h2>
                 <p class="mb-4">Configure Apache (as a reverse proxy) to use its client certificate when communicating with Tomcat and to verify Tomcat's server certificate.</p>
                  <h3 class="text-xl font-semibold text-orange-600">Configuration Snippet (within Apache's configuration, e.g., a VirtualHost):</h3>
                 <div class="code-block mb-4">
@@ -373,8 +373,8 @@ SSLProxyVerify require
 SSLProxyCACertificateFile "/home/vmuser/ssl/tomcat/New/ca.crt"
 SSLProxyMachineCertificateFile "/home/vmuser/ssl/tomcat/New/apache_client.pem"
 
-ProxyPass /bondsnew8/ "https://172.17.202.237:8033/bondsnew8/"
-ProxyPassReverse /bondsnew8/ "https://172.17.202.237:8033/bondsnew8/"</code></pre>
+ProxyPass /path/ "https://AppServerIP:8082/path/"
+ProxyPassReverse /path/ "https://AppServerIP:8082/path/"</code></pre>
                 </div>
                  <h3 class="text-xl font-semibold text-orange-600">Explanation of Directives:</h3>
                  <ul class="list-disc list-inside space-y-2 mt-2">
@@ -393,14 +393,14 @@ ProxyPassReverse /bondsnew8/ "https://172.17.202.237:8033/bondsnew8/"</code></pr
                 <h3 class="text-xl font-semibold text-orange-600">With certificate from web server (simulating Apache):</h3>
                 <div class="code-block mb-4">
                     <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
-                    <pre><code>openssl s_client -connect 172.17.202.237:8033 -cert apache_client.pem -key apache_client.pem -CAfile ca.crt</code></pre>
+                    <pre><code>openssl s_client -connect AppServerIP:8082 -cert apache_client.pem -key apache_client.pem -CAfile ca.crt</code></pre>
                 </div>
                 <p class="mb-2"><strong>Expected Output:</strong> Successful handshake, details of certificate exchange, and "Verify return code: 0 (ok)".</p>
 
                 <h3 class="text-xl font-semibold text-orange-600">Without certificate (simulating unauthorized client):</h3>
                 <div class="code-block mb-4">
                     <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
-                    <pre><code>openssl s_client -connect 172.17.202.237:8033 -CAfile ca.crt</code></pre>
+                    <pre><code>openssl s_client -connect AppServerIP:8082 -CAfile ca.crt</code></pre>
                 </div>
                 <p><strong>Expected Output:</strong> Connection should fail or be rejected by Tomcat because no client certificate is presented. This confirms Tomcat is enforcing mTLS.</p>
             </section>
