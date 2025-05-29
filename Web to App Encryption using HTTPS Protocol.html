@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive mTLS Setup Guide: Apache & Tomcat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Visualization & Content Choices:
+        - Report Info: mTLS Setup Steps (Root CA creation, Tomcat cert generation, Apache client cert generation, server configurations, verification). Goal: Guide user through each phase of mTLS setup. Viz/Presentation: Distinct HTML sections for each step, using `<pre><code>` for commands, and structured paragraphs for explanations. Interaction: Sidebar navigation for smooth scrolling to sections, copy-to-clipboard buttons for commands. Justification: Provides a clear, direct, and actionable presentation of technical procedures. Library/Method: Vanilla JavaScript for navigation and copy functionality, HTML/Tailwind for structure and styling.
+        - Report Info: Key files generated (e.g., ca.key, ca.crt, tomcat.jks, apache_client.pem). Goal: Highlight important output artifacts at each step. Viz/Presentation: Visually distinct `<code>` tags or small callout boxes within relevant sections. Interaction: None direct, informational. Justification: Helps users track critical files. Library/Method: HTML/Tailwind.
+        - Report Info: Explanations of OpenSSL commands, configuration parameters, and mTLS concepts. Goal: Educate user on the 'why' and 'how' of each action. Viz/Presentation: Clearly formatted paragraphs, bullet points, bolded key terms. Interaction: None direct, informational. Justification: Ensures understanding beyond just executing commands. Library/Method: HTML/Tailwind.
+        - Report Info: Rationale for using mTLS. Goal: Provide context and justification for the security measure. Viz/Presentation: A dedicated 'Why Mutual TLS is Essential' section with clear headings and bullet points summarizing benefits. Interaction: None direct, informational. Justification: Reinforces the importance of the setup. Library/Method: HTML/Tailwind.
+        CONFIRMING NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif; /* Using a common sans-serif font if Inter is not loaded by Tailwind CDN default */
+        }
+        @media (min-width: 768px) {
+            .sidebar {
+                position: sticky;
+                top: 0;
+                height: 100vh;
+            }
+        }
+        .content-section {
+            scroll-margin-top: 4rem; /* Offset for fixed header if any, or just some space */
+        }
+        .nav-link.active {
+            background-color: #EA580C; /* bg-orange-600 */
+            color: white;
+        }
+        .nav-link:hover {
+            background-color: #F97316; /* bg-orange-500 */
+            color: white;
+        }
+        .code-block {
+            background-color: #1E293B; /* bg-slate-800 */
+            color: #E2E8F0; /* text-slate-200 */
+            padding: 1rem;
+            border-radius: 0.375rem; /* rounded-md */
+            overflow-x: auto;
+            position: relative;
+        }
+        .copy-button {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background-color: #F59E0B; /* bg-amber-500 */
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.15s ease-in-out;
+        }
+        .copy-button:hover {
+            background-color: #D97706; /* bg-amber-600 */
+        }
+        .copy-button.copied {
+            background-color: #10B981; /* bg-green-500 */
+        }
+        h2 {
+            border-bottom: 2px solid #F97316; /* border-orange-500 */
+            padding-bottom: 0.5rem;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+        h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+        code.inline-code {
+            background-color: #F1F5F9; /* bg-slate-100 */
+            color: #DD6B20; /* text-orange-600 equivalent */
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            font-size: 0.875em;
+        }
+    </style>
+</head>
+<body class="bg-orange-50 text-neutral-800">
+    <div class="flex flex-col md:flex-row">
+        <nav class="sidebar w-full md:w-64 lg:w-72 bg-orange-100 p-4 space-y-2 shadow-lg md:overflow-y-auto">
+            <h1 class="text-xl font-bold text-orange-700 mb-6">mTLS Setup Guide</h1>
+            <a href="#overview" class="nav-link block py-2 px-3 rounded-md text-neutral-700 font-medium">Overview</a>
+            <a href="#step1" class="nav-link block py-2 px-3 rounded-md text-neutral-700 font-medium">1. Root CA</a>
+            <a href="#step2" class="nav-link block py-2 px-3 rounded-md text-neutral-700 font-medium">2. Tomcat Server Cert</a>
+            <a href="#step3" class="nav-link block py-2 px-3 rounded-md text-neutral-700 font-medium">3. Tomcat Keystore</a>
+            <a href="#step4" class="nav-link block py-2 px-3 rounded-md text-neutral-700 font-medium">4. Tomcat Truststore</a>
+            <a href="#step5" class="nav-link block py-2 px-3 rounded-md text-neutral-700 font-medium">5. Apache Client Cert</a>
+            <a href="#step6" class="nav-link block py-2 px-3 rounded-md text-neutral-700 font-medium">6. Combine Apache Cert/Key</a>
+            <a href="#step7" class="nav-link block py-2 px-3 rounded-md text-neutral-700 font-medium">7. Tomcat Configuration</a>
+            <a href="#step8" class="nav-link block py-2 px-3 rounded-md text-neutral-700 font-medium">8. Apache Configuration</a>
+            <a href="#step9" class="nav-link block py-2 px-3 rounded-md text-neutral-700 font-medium">9. Verify Handshake</a>
+            <a href="#why-mtls" class="nav-link block py-2 px-3 rounded-md text-neutral-700 font-medium">Why Mutual TLS?</a>
+        </nav>
+
+        <main class="flex-1 p-6 md:p-10 max-w-4xl mx-auto">
+            <section id="overview" class="content-section mb-12">
+                <h2 class="text-3xl font-bold text-orange-700">Web to App Encryption using HTTPS (Mutual TLS)</h2>
+                <p class="mt-2 text-lg">This guide outlines the detailed steps for implementing <strong>mutual TLS (mTLS)</strong> encryption between an Apache web server and a Tomcat application server using HTTPS. This setup ensures highly secure, mutually authenticated, and encrypted communication between the two components.</p>
+                <p class="mt-2">Mutual TLS is a security mechanism where both the client (Apache) and the server (Tomcat) authenticate each other using digital certificates. This goes beyond standard HTTPS, where typically only the client verifies the server's identity.</p>
+
+                <h3 class="text-2xl font-semibold text-orange-600 mt-6">Key Certificate Components:</h3>
+                <p>To achieve mutual TLS, we need three primary certificate components:</p>
+                <ul class="list-disc list-inside mt-2 space-y-1">
+                    <li><strong>Root Certificate Authority (CA):</strong> A self-signed certificate acting as the trusted entity, signing certificates for both Apache and Tomcat.</li>
+                    <li><strong>Tomcat Server Certificate:</strong> Signed by the Root CA, presented by Tomcat to Apache to verify Tomcat's identity.</li>
+                    <li><strong>Apache Client Certificate:</strong> Signed by the Root CA, presented by Apache to Tomcat to verify Apache's identity.</li>
+                </ul>
+                 <p class="mt-4 p-4 bg-amber-100 border-l-4 border-amber-500 text-amber-700 rounded-md">
+                    This interactive guide will walk you through each step of the configuration. Use the navigation on the left to jump to specific sections. Commands can be copied using the '📋 Copy' button provided with each code block.
+                </p>
+            </section>
+
+            <section id="step1" class="content-section">
+                <h2 class="text-2xl font-bold text-orange-700">1. Create Root CA Key and Certificate</h2>
+                <p class="mb-4">The Root CA serves as the ultimate trusted authority in our private Public Key Infrastructure (PKI). Generating its private key and self-signed certificate is the foundational step for issuing and signing all other certificates in this setup, thereby establishing a chain of trust.</p>
+                <h3 class="text-xl font-semibold text-orange-600">Commands:</h3>
+                <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code>openssl genrsa -out ca.key 2048
+openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 -out ca.crt -subj "/C=IN/ST=Maharashtra/L=Mumbai/O=National Stock Exchange of India Limited/OU=National Stock Exchange of India Limited/CN=CA"</code></pre>
+                </div>
+                <h3 class="text-xl font-semibold text-orange-600">Explanation:</h3>
+                <ul class="list-disc list-inside space-y-2 mt-2">
+                    <li><code class="inline-code">openssl genrsa -out ca.key 2048</code>: Generates a 2048-bit RSA private key and saves it to <code class="inline-code">ca.key</code>.</li>
+                    <li><code class="inline-code">openssl req -x509 ... -out ca.crt ...</code>: Creates a self-signed X.509 certificate (<code class="inline-code">ca.crt</code>) for the Root CA using <code class="inline-code">ca.key</code>.
+                        <ul class="list-circle list-inside ml-4 mt-1">
+                            <li><code class="inline-code">-x509</code>: Specifies a self-signed certificate.</li>
+                            <li><code class="inline-code">-nodes</code>: "No DES"; the private key won't be encrypted with a passphrase.</li>
+                            <li><code class="inline-code">-sha256</code>: Uses SHA256 for the signature.</li>
+                            <li><code class="inline-code">-days 3650</code>: Certificate validity (10 years).</li>
+                            <li><code class="inline-code">-subj "..."</code>: Provides the Distinguished Name (DN) identifying the CA.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Generated Files:</strong>
+                        <ul class="list-circle list-inside ml-4 mt-1">
+                            <li><code class="inline-code">ca.key</code>: Root CA's private key. **Keep highly secure.**</li>
+                            <li><code class="inline-code">ca.crt</code>: Root CA's public certificate. Distribute to Apache/Tomcat for trust.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </section>
+
+            <section id="step2" class="content-section">
+                <h2 class="text-2xl font-bold text-orange-700">2. Create Certificate and Key for Tomcat Server</h2>
+                <p class="mb-4">This step generates a private key and a Certificate Signing Request (CSR) for Tomcat. The CSR is then signed by the Root CA to produce Tomcat's public certificate, which identifies Tomcat to Apache.</p>
+                <h3 class="text-xl font-semibold text-orange-600">Create OpenSSL config for Tomcat server (<code class="inline-code">app_san.cnf</code>):</h3>
+                <p class="mb-2">This file defines Tomcat certificate details, including Subject Alternative Names (SANs) for various hostnames/IPs.</p>
+                 <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code># Create and edit app_san.cnf:
+# touch app_san.cnf
+# vi app_san.cnf
+#
+# Content of app_san.cnf:
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+req_extensions = req_ext
+distinguished_name = dn
+
+[dn]
+C = IN
+ST = Maharashtra
+L = Mumbai
+O = National Stock Exchange of India Limited
+OU = National Stock Exchange of India Limited
+CN = 172.17.202.237
+
+[req_ext]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = ebpappuatnw
+DNS.2 = ebpappuatnw.nseroot.com
+IP.1 = 172.17.202.237</code></pre>
+                </div>
+                <h3 class="text-xl font-semibold text-orange-600">Generate Tomcat server certificate with SANs:</h3>
+                <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code>openssl genrsa -out tomcat.key 2048
+openssl req -new -key tomcat.key -out tomcat.csr -config app_san.cnf
+openssl x509 -req -in tomcat.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out tomcat.crt -days 365 -sha256 -extfile app_san.cnf -extensions req_ext</code></pre>
+                </div>
+                <h3 class="text-xl font-semibold text-orange-600">Explanation:</h3>
+                 <ul class="list-disc list-inside space-y-2 mt-2">
+                    <li>The <code class="inline-code">app_san.cnf</code> file details server identity (CN, SANs for DNS/IP).</li>
+                    <li><code class="inline-code">openssl genrsa -out tomcat.key 2048</code>: Generates Tomcat's private key.</li>
+                    <li><code class="inline-code">openssl req -new ... -out tomcat.csr ...</code>: Creates Tomcat's CSR using its private key and <code class="inline-code">app_san.cnf</code>.</li>
+                    <li><code class="inline-code">openssl x509 -req ... -out tomcat.crt ...</code>: Signs Tomcat's CSR with the Root CA, including SANs from the config.</li>
+                    <li><strong>Generated Files:</strong>
+                        <ul class="list-circle list-inside ml-4 mt-1">
+                            <li><code class="inline-code">tomcat.key</code>: Tomcat's private key.</li>
+                            <li><code class="inline-code">tomcat.csr</code>: Tomcat's Certificate Signing Request.</li>
+                            <li><code class="inline-code">tomcat.crt</code>: Tomcat's public certificate, signed by Root CA.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </section>
+
+            <section id="step3" class="content-section">
+                <h2 class="text-2xl font-bold text-orange-700">3. Create Tomcat Keystore</h2>
+                <p class="mb-4">Tomcat uses Java Keystore (JKS) format. This step converts the OpenSSL-generated certificate and key into PKCS12 format, then into JKS.</p>
+                <h3 class="text-xl font-semibold text-orange-600">Create PKCS12 keystore:</h3>
+                 <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code>openssl pkcs12 -export -in tomcat.crt -inkey tomcat.key -out tomcat.p12 -name tomcat -CAfile ca.crt -password pass:Nse1234</code></pre>
+                </div>
+                <h3 class="text-xl font-semibold text-orange-600">Convert into Java keystore (JKS):</h3>
+                <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code>keytool -importkeystore -srckeystore tomcat.p12 -srcstoretype PKCS12 -srcstorepass Nse1234 -destkeystore tomcat.jks -deststoretype JKS -deststorepass Nse1234 -destkeypass Nse1234</code></pre>
+                </div>
+                <h3 class="text-xl font-semibold text-orange-600">Explanation:</h3>
+                 <ul class="list-disc list-inside space-y-2 mt-2">
+                    <li><code class="inline-code">openssl pkcs12 -export ... -out tomcat.p12 ...</code>: Exports Tomcat's cert/key to <code class="inline-code">tomcat.p12</code> (PKCS12 format), including the CA cert for chain building. Use a strong password.</li>
+                    <li><code class="inline-code">keytool -importkeystore ... -destkeystore tomcat.jks ...</code>: Converts <code class="inline-code">tomcat.p12</code> to <code class="inline-code">tomcat.jks</code> (Java Keystore format).</li>
+                     <li><strong>Generated Files:</strong>
+                        <ul class="list-circle list-inside ml-4 mt-1">
+                            <li><code class="inline-code">tomcat.p12</code>: Intermediate PKCS12 keystore.</li>
+                            <li><code class="inline-code">tomcat.jks</code>: Final JKS keystore for Tomcat configuration.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </section>
+
+            <section id="step4" class="content-section">
+                <h2 class="text-2xl font-bold text-orange-700">4. Create Tomcat Truststore</h2>
+                <p class="mb-4">Tomcat needs to trust the CA that signed Apache's client certificate. This step creates a truststore for Tomcat and imports the Root CA's public certificate into it.</p>
+                 <h3 class="text-xl font-semibold text-orange-600">Command:</h3>
+                <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code>keytool -import -trustcacerts -file ca.crt -keystore truststore.jks -alias ca -storepass Nse1234 -noprompt</code></pre>
+                </div>
+                <h3 class="text-xl font-semibold text-orange-600">Explanation:</h3>
+                <ul class="list-disc list-inside space-y-2 mt-2">
+                    <li><code class="inline-code">keytool -import -trustcacerts ... -keystore truststore.jks ...</code>: Imports the Root CA certificate (<code class="inline-code">ca.crt</code>) into a new JKS truststore (<code class="inline-code">truststore.jks</code>). Tomcat uses this to verify Apache's client certificate.</li>
+                    <li><strong>Generated File:</strong>
+                        <ul class="list-circle list-inside ml-4 mt-1">
+                             <li><code class="inline-code">truststore.jks</code>: Tomcat's truststore containing the Root CA certificate.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </section>
+
+            <section id="step5" class="content-section">
+                <h2 class="text-2xl font-bold text-orange-700">5. Generate Apache Client Certificate</h2>
+                 <p class="mb-4">Apache, acting as a client to Tomcat, needs its own digital identity. This step generates a private key and CSR for Apache, signed by the Root CA.</p>
+                <h3 class="text-xl font-semibold text-orange-600">Create OpenSSL config for Apache server (<code class="inline-code">web_san.cnf</code>):</h3>
+                <p class="mb-2">Defines Apache client certificate details, including SANs.</p>
+                 <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code># Create and edit web_san.cnf:
+# touch web_san.cnf
+# vi web_san.cnf
+#
+# Content of web_san.cnf:
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+req_extensions = req_ext
+distinguished_name = dn
+
+[dn]
+C = IN
+ST = Maharashtra
+L = Mumbai
+O = National Stock Exchange of India Limited
+OU = National Stock Exchange of India Limited
+CN = 192.168.17.22
+
+[req_ext]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = cbricsebpwebuatnw1.nseroot.com
+DNS.2 = bricsonlinereguat.nseindia.com
+DNS.3 = www.bricsonlinereguat.nseindia.com
+DNS.4 = cbricsebpwebuatnw1
+IP.1 = 192.168.17.22</code></pre>
+                </div>
+                <h3 class="text-xl font-semibold text-orange-600">Generate Apache client certificate with SANs:</h3>
+                <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code>openssl genrsa -out apache.key 2048
+openssl req -new -key apache.key -out apache.csr -config web_san.cnf
+openssl x509 -req -in apache.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out apache.crt -days 365 -sha256 -extfile web_san.cnf -extensions req_ext</code></pre>
+                </div>
+                 <h3 class="text-xl font-semibold text-orange-600">Explanation:</h3>
+                 <ul class="list-disc list-inside space-y-2 mt-2">
+                    <li>The <code class="inline-code">web_san.cnf</code> file details Apache's identity.</li>
+                    <li>Commands are similar to Tomcat's certificate generation, resulting in Apache's private key (<code class="inline-code">apache.key</code>), CSR (<code class="inline-code">apache.csr</code>), and signed public certificate (<code class="inline-code">apache.crt</code>).</li>
+                    <li><strong>Generated Files:</strong>
+                        <ul class="list-circle list-inside ml-4 mt-1">
+                            <li><code class="inline-code">apache.key</code>: Apache's private key.</li>
+                            <li><code class="inline-code">apache.csr</code>: Apache's Certificate Signing Request.</li>
+                            <li><code class="inline-code">apache.crt</code>: Apache's public certificate, signed by Root CA.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </section>
+
+            <section id="step6" class="content-section">
+                <h2 class="text-2xl font-bold text-orange-700">6. Combine Apache Certificate and Key</h2>
+                <p class="mb-4">Apache often requires the private key and certificate in a single PEM-encoded file for its SSL client configuration.</p>
+                <h3 class="text-xl font-semibold text-orange-600">Commands:</h3>
+                <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code>openssl rsa -in apache.key -out apache_unencrypted.key
+cat apache.crt apache_unencrypted.key > apache_client.pem</code></pre>
+                </div>
+                <h3 class="text-xl font-semibold text-orange-600">Explanation:</h3>
+                 <ul class="list-disc list-inside space-y-2 mt-2">
+                    <li><code class="inline-code">openssl rsa -in apache.key -out apache_unencrypted.key</code>: Outputs an unencrypted version of Apache's private key.</li>
+                    <li><code class="inline-code">cat apache.crt apache_unencrypted.key > apache_client.pem</code>: Concatenates Apache's public certificate and its unencrypted private key into <code class="inline-code">apache_client.pem</code>.</li>
+                    <li><strong>Generated File:</strong>
+                        <ul class="list-circle list-inside ml-4 mt-1">
+                            <li><code class="inline-code">apache_client.pem</code>: Combined certificate and key for Apache configuration.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </section>
+
+            <section id="step7" class="content-section">
+                <h2 class="text-2xl font-bold text-orange-700">7. Configure Tomcat Certificate in <code class="inline-code">server.xml</code></h2>
+                <p class="mb-4">Configure Tomcat to use its SSL/TLS certificates for secure communication and to require client authentication from Apache.</p>
+                <h3 class="text-xl font-semibold text-orange-600">Configuration Snippet (within Tomcat's <code class="inline-code">server.xml</code>):</h3>
+                <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code>&lt;Connector  protocol="org.apache.coyote.http11.Http11NioProtocol"
+             address="0.0.0.0"
+             port="${server.ajp.port}"
+             server="MyServer"
+             connectionTimeout="20000"
+             redirectPort="${server.redirect.port}"
+             maxParameterCount="1000"
+             SSLEnabled="true"
+             scheme="https"
+             secure="true"
+             clientAuth="true"
+             sslProtocol="TLS"
+             keystoreFile="/path/to/tomcat.jks"
+             keystorePass="Nse1234"
+             truststoreFile="/path/to/truststore.jks"
+             truststorePass="Nse1234"
+             /&gt;</code></pre>
+                </div>
+                <h3 class="text-xl font-semibold text-orange-600">Explanation of Attributes:</h3>
+                 <ul class="list-disc list-inside space-y-2 mt-2">
+                    <li><code class="inline-code">SSLEnabled="true"</code>: Enables SSL/TLS for this connector.</li>
+                    <li><code class="inline-code">scheme="https"</code>, <code class="inline-code">secure="true"</code>: Designate connector as secure (HTTPS).</li>
+                    <li><code class="inline-code">clientAuth="true"</code>: **Crucial for mTLS.** Tells Tomcat to require a client certificate. If not presented or untrusted, connection is rejected.</li>
+                    <li><code class="inline-code">sslProtocol="TLS"</code>: Specifies TLS protocol.</li>
+                    <li><code class="inline-code">keystoreFile="/path/to/tomcat.jks"</code>: Path to Tomcat's JKS keystore (contains its private key and certificate). **Replace <code class="inline-code">/path/to/</code> with the actual path.**</li>
+                    <li><code class="inline-code">keystorePass="Nse1234"</code>: Password for Tomcat's keystore.</li>
+                    <li><code class="inline-code">truststoreFile="/path/to/truststore.jks"</code>: Path to Tomcat's JKS truststore (contains Root CA cert for verifying Apache's client cert). **Replace <code class="inline-code">/path/to/</code> with the actual path.**</li>
+                    <li><code class="inline-code">truststorePass="Nse1234"</code>: Password for Tomcat's truststore.</li>
+                </ul>
+            </section>
+
+            <section id="step8" class="content-section">
+                <h2 class="text-2xl font-bold text-orange-700">8. Configure Apache Client Certificate in <code class="inline-code">excellex_confi.conf</code></h2>
+                <p class="mb-4">Configure Apache (as a reverse proxy) to use its client certificate when communicating with Tomcat and to verify Tomcat's server certificate.</p>
+                 <h3 class="text-xl font-semibold text-orange-600">Configuration Snippet (within Apache's configuration, e.g., a VirtualHost):</h3>
+                <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code>SSLProxyEngine on
+SSLProxyVerify require
+SSLProxyCACertificateFile "/home/vmuser/ssl/tomcat/New/ca.crt"
+SSLProxyMachineCertificateFile "/home/vmuser/ssl/tomcat/New/apache_client.pem"
+
+ProxyPass /bondsnew8/ "https://172.17.202.237:8033/bondsnew8/"
+ProxyPassReverse /bondsnew8/ "https://172.17.202.237:8033/bondsnew8/"</code></pre>
+                </div>
+                 <h3 class="text-xl font-semibold text-orange-600">Explanation of Directives:</h3>
+                 <ul class="list-disc list-inside space-y-2 mt-2">
+                    <li><code class="inline-code">SSLProxyEngine on</code>: Enables SSL/TLS for the proxy connection.</li>
+                    <li><code class="inline-code">SSLProxyVerify require</code>: **Crucial for mTLS.** Apache requires and verifies Tomcat's server certificate.</li>
+                    <li><code class="inline-code">SSLProxyCACertificateFile "..."</code>: Path to the Root CA certificate file. Apache uses this to verify Tomcat's certificate. **Ensure path is correct.**</li>
+                    <li><code class="inline-code">SSLProxyMachineCertificateFile "..."</code>: Path to Apache's client certificate (<code class="inline-code">apache_client.pem</code>), which Apache presents to Tomcat. **Ensure path is correct.**</li>
+                    <li><code class="inline-code">ProxyPass ...</code>: Forwards requests to Tomcat.</li>
+                    <li><code class="inline-code">ProxyPassReverse ...</code>: Rewrites response headers from Tomcat.</li>
+                </ul>
+            </section>
+
+            <section id="step9" class="content-section">
+                <h2 class="text-2xl font-bold text-orange-700">9. Verify SSL Handshake</h2>
+                <p class="mb-4">Test the SSL/TLS handshake to ensure certificates are presented and verified correctly.</p>
+                <h3 class="text-xl font-semibold text-orange-600">With certificate from web server (simulating Apache):</h3>
+                <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code>openssl s_client -connect 172.17.202.237:8033 -cert apache_client.pem -key apache_client.pem -CAfile ca.crt</code></pre>
+                </div>
+                <p class="mb-2"><strong>Expected Output:</strong> Successful handshake, details of certificate exchange, and "Verify return code: 0 (ok)".</p>
+
+                <h3 class="text-xl font-semibold text-orange-600">Without certificate (simulating unauthorized client):</h3>
+                <div class="code-block mb-4">
+                    <button class="copy-button" onclick="copyCode(this)">📋 Copy</button>
+                    <pre><code>openssl s_client -connect 172.17.202.237:8033 -CAfile ca.crt</code></pre>
+                </div>
+                <p><strong>Expected Output:</strong> Connection should fail or be rejected by Tomcat because no client certificate is presented. This confirms Tomcat is enforcing mTLS.</p>
+            </section>
+
+            <section id="why-mtls" class="content-section">
+                <h2 class="text-2xl font-bold text-orange-700">Why Mutual TLS is Essential</h2>
+                <p class="mb-4">Mutual TLS (mTLS) provides a significant security upgrade by ensuring that both parties in a communication (Apache and Tomcat) authenticate each other. Here's why it's crucial:</p>
+                <ol class="list-decimal list-inside space-y-3">
+                    <li>
+                        <strong>Zero Trust Security Model:</strong> In standard HTTPS, only the client verifies the server. With mTLS, both client (Apache) and server (Tomcat) authenticate. Tomcat only communicates with an Apache server presenting a specific, trusted certificate, aligning with the "never trust, always verify" principle.
+                    </li>
+                    <li>
+                        <strong>Prevents Unauthorized Access to Backend:</strong> Attempts to bypass Apache and connect directly to Tomcat, or impersonate Apache, will be rejected if the connecting party lacks the required trusted client certificate, creating a strong perimeter.
+                    </li>
+                    <li>
+                        <strong>Enhanced Data Confidentiality and Integrity:</strong> All communication between Apache and Tomcat is encrypted via TLS, protecting sensitive data from eavesdropping and tampering.
+                    </li>
+                    <li>
+                        <strong>Stronger Authentication:</strong> Certificates offer much stronger authentication than passwords for machine-to-machine communication, being cryptographically bound to identity and harder to compromise.
+                    </li>
+                    <li>
+                        <strong>Compliance and Auditability:</strong> mTLS helps meet stringent security mandates for internal system communications (e.g., PCI DSS, HIPAA) and provides a clear audit trail of authenticated connections.
+                    </li>
+                </ol>
+                <p class="mt-4 font-semibold">In essence, mutual TLS ensures:</p>
+                <ul class="list-disc list-inside mt-1 space-y-1">
+                    <li>Apache knows it's talking to the real Tomcat.</li>
+                    <li>Tomcat knows it's only talking to the real Apache.</li>
+                    <li>All communication between them is encrypted and secure.</li>
+                </ul>
+                <p class="mt-2">This significantly reduces the attack surface and strengthens the overall security posture of the web application.</p>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        function copyCode(buttonElement) {
+            const preElement = buttonElement.parentElement.querySelector('pre');
+            const code = preElement.innerText || preElement.textContent;
+            
+            // Create a temporary textarea element to hold the text
+            const textarea = document.createElement('textarea');
+            textarea.value = code;
+            document.body.appendChild(textarea);
+            textarea.select();
+            textarea.setSelectionRange(0, 99999); // For mobile devices
+            
+            try {
+                document.execCommand('copy');
+                buttonElement.innerText = '✅ Copied!';
+                buttonElement.classList.add('copied');
+                setTimeout(() => {
+                    buttonElement.innerText = '📋 Copy';
+                    buttonElement.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                alert('Failed to copy text. Please copy manually.');
+            }
+            
+            document.body.removeChild(textarea);
+        }
+
+        // Smooth scroll and active link highlighting
+        document.addEventListener('DOMContentLoaded', () => {
+            const navLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('.content-section');
+
+            function changeActiveLink() {
+                let index = sections.length;
+
+                while(--index && window.scrollY + 100 < sections[index].offsetTop) {} // 100 is offset
+                
+                navLinks.forEach((link) => link.classList.remove('active'));
+                if (navLinks[index]) {
+                     navLinks[index].classList.add('active');
+                }
+            }
+
+            changeActiveLink(); // Set active link on page load
+            window.addEventListener('scroll', changeActiveLink);
+
+            navLinks.forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('href');
+                    const targetElement = document.querySelector(targetId);
+                    if (targetElement) {
+                        targetElement.scrollIntoView({
+                            behavior: 'smooth'
+                        });
+                         // Update active link immediately on click for better UX
+                        navLinks.forEach(link => link.classList.remove('active'));
+                        this.classList.add('active');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
