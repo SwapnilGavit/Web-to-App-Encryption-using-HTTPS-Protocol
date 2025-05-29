@@ -30,7 +30,7 @@ Before following the guide, ensure you have the following installed:
 
 ## Setup Instructions
 
-The guide is divided into nine key steps, detailed in the `Web to App Encryption using HTTPS Protocol (2).html` file. Below is a high-level overview:
+The guide is divided into nine key steps, detailed in the `Web to App Encryption using HTTPS Protocol.html` file. Below is a high-level overview:
 
 1. **Create Root CA**: Generate a self-signed Root CA certificate and key to sign other certificates.
 2. **Tomcat Server Certificate**: Create a certificate and key for Tomcat, including Subject Alternative Names (SANs).
@@ -51,7 +51,7 @@ For detailed commands and explanations, refer to the Web to App Encryption using
 
 ## File Structure
 
-- `Web to App Encryption using HTTPS Protocol (2).html`: The main guide with detailed steps and commands.
+- `Web to App Encryption using HTTPS Protocol.html`: The main guide with detailed steps and commands.
 - (Optional) Add generated files (e.g., `ca.crt`, `tomcat.jks`, `apache_client.pem`) to a `.gitignore` to avoid committing sensitive data.
 
 ## Security Notes
